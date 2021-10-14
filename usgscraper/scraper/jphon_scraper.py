@@ -5,7 +5,7 @@ from functools import reduce
 from bs4 import BeautifulSoup
 from multiprocessing import Pool
 from dataclasses import dataclass
-from typing import Optional, Union, Callable, Awaitable
+from typing import Optional, Union, Callable, Awaitable, Any
 from usgscraper.json_downloader import JPhonJSONDownloader
 
 
@@ -19,12 +19,12 @@ class JPhonInfo(pydantic.BaseModel):
     authors: list
     doi: str
     href: str
-    keywords: list
+    keywords: Any
 
     @pydantic.validator("authors")
     @classmethod
     def is_author(cls, author) -> str:
-        """The is_author method makes sure there is authors value definied."""
+        """The is_author method makes sure there is author value definied."""
 
         def extract_author(value):
             auth_id = value["id"]
@@ -32,7 +32,15 @@ class JPhonInfo(pydantic.BaseModel):
             return {auth_id: full_name}
 
         return list(map(extract_author, author))
-
+    
+    @pydantic.validator("keywords")
+    @classmethod
+    def is_keyword(cls, keyword):
+        """The is_keyword method makes sure there is keyword value definied"""
+        if keyword == None:
+            return 'no keyword'
+        return keyword
+    
 
 @dataclass
 class JPhon:
