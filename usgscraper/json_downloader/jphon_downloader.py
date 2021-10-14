@@ -26,8 +26,8 @@ class JPhonJSONDownloader:
             return f"https://www.sciencedirect.com/journal/journal-of-phonetics/vol/{self.volume}/suppl/C"
         return f"https://www.sciencedirect.com/journal/journal-of-phonetics/vol/{self.volume}/issue/{self.issue}"
 
-    def find_articles_strategy_1(self, json_info: json) -> json:
-        """The find_articles_strategy_1 method is a strategy that finds the artice JSON data from `json_info`.
+    def find_articles(self, json_info: json) -> json:
+        """The find_articles method is a strategy that finds the artice JSON data from `json_info`.
 
         Args:
             json_info (json): the original JSON data
@@ -35,22 +35,14 @@ class JPhonJSONDownloader:
         Returns:
             a json
         """
-        return json.loads(json_info)["articles"]["ihp"]["data"]["issueBody"][
-            "issueSec"
-        ][1]["includeItem"]
-
-    def find_articles_strategy_2(self, json_info) -> json:
-        """The find_articles_strategy_2 method is another strategy that finds the artice JSON data from `json_info`.
-
-        Args:
-            json_info (json): the original JSON data
-
-        Returns:
-            a json
-        """
-        return json.loads(json_info)["articles"]["ihp"]["data"]["issueBody"][
-            "includeItem"
-        ]
+        try:
+            return json.loads(json_info)["articles"]["ihp"]["data"]["issueBody"][
+                "issueSec"
+            ][1]["includeItem"]
+        except KeyError:
+            return json.loads(json_info)["articles"]["ihp"]["data"]["issueBody"][
+                "includeItem"
+            ]
 
     async def download(self) -> json:
         """The get_json method gets the JSON data.
@@ -65,7 +57,4 @@ class JPhonJSONDownloader:
                 json_info = json.loads(
                     soup.find("script", {"type": "application/json"}).text
                 )
-                try:
-                    return self.find_articles_strategy_1(json_info)
-                except KeyError:
-                    return self.find_articles_strategy_2(json_info)
+                return self.find_articles(json_info) 
