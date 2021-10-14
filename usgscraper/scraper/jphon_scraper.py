@@ -1,6 +1,9 @@
 import asyncio
+import aiohttp
 import pydantic
 from functools import reduce
+from bs4 import BeautifulSoup
+from multiprocessing import Pool
 from dataclasses import dataclass
 from typing import Optional, Union, Callable, Awaitable
 from usgscraper.json_downloader import JPhonJSONDownloader
@@ -16,14 +19,7 @@ class JPhonInfo(pydantic.BaseModel):
     authors: list
     doi: str
     href: str
-
-    @pydantic.validator("href")
-    @classmethod
-    def is_href(cls, link) -> str:
-        """The is_href method makes sure there is href value definied."""
-        if not link:
-            return "no link"
-        return f"https://www.sciencedirect.com{link}"
+    keywords: list
 
     @pydantic.validator("authors")
     @classmethod
@@ -79,6 +75,14 @@ class JPhon:
             ).download()
         )
 
+    async def get_keywords(self, url):
+        async with aiohttp.ClientSession(headers=self.headers) as session:
+            async with session.get(url) as response:
+                html = await response.text()
+                soup = BeautifulSoup(html, "lxml")
+                keyword_html = soup.find(class_="keywords-section")
+                return [keyword.text for keyword in keyword_html][1:]
+
     def clean_data(self, json_data: dict) -> dict[str, Union[str, list]]:
         """The clean_data method cleans the JSON data from the class property `self.json_data`.
 
@@ -96,7 +100,7 @@ class JPhon:
         """
         title = json_data["title"]
         doi = json_data["doi"]
-        href = json_data["href"]
+        href = f'https://www.sciencedirect.com{json_data["href"]}'
         published_date = json_data["coverDateText"]
         authors = json_data["authors"]
         article_info = JPhonInfo(
@@ -105,14 +109,16 @@ class JPhon:
             authors=authors,
             doi=doi,
             href=href,
+            keywords=asyncio.run(self.get_keywords(href)),
         )
         return article_info.dict()
 
-    def extract_data(self) -> map[dict[str, Union[str, list]]]:
+    def extract_data(self) -> map:
         """The extract_data method extracts the JSON data from the class property `self.json_data`.
 
         Returns:
             a map object
         """
-        data = map(self.clean_data, self.json_data)
+        pool = Pool()
+        data = pool.map(self.clean_data, self.json_data)
         return data
