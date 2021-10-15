@@ -3,7 +3,6 @@ import aiohttp
 import pydantic
 from functools import reduce
 from bs4 import BeautifulSoup
-from multiprocessing import Pool
 from dataclasses import dataclass
 from typing import Optional, Union, Callable, Awaitable, Any
 from usgscraper.json_downloader import JPhonJSONDownloader
@@ -91,7 +90,7 @@ class JPhon:
                 keyword_html = soup.find(class_="keywords-section")
                 return [keyword.text for keyword in keyword_html][1:]
 
-    def clean_data(self, json_data: dict) -> dict[str, Union[str, list]]:
+    async def clean_data(self, json_data: dict) -> dict[str, Union[str, list]]:
         """The clean_data method cleans the JSON data from the class property `self.json_data`.
 
         Args:
@@ -121,12 +120,11 @@ class JPhon:
         )
         return article_info.dict()
 
-    def extract_data(self) -> map:
+    async def extract_data(self) -> map:
         """The extract_data method extracts the JSON data from the class property `self.json_data`.
 
         Returns:
             a map object
         """
-        pool = Pool()
-        data = pool.map(self.clean_data, self.json_data)
-        return data
+        tasks = [*map(self.clean_data, self.json_data)] 
+        return await asyncio.gather(*tasks)
