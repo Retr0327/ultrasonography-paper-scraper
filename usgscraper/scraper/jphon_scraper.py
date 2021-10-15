@@ -120,11 +120,11 @@ class JPhon:
         )
         return article_info.dict()
 
-    async def extract_data(self) -> map:
+    def extract_data(self) -> map:
         """The extract_data method extracts the JSON data from the class property `self.json_data`.
 
         Returns:
             a map object
         """
-        tasks = [*map(self.clean_data, self.json_data)] 
-        return await asyncio.gather(*tasks)
+        tasks = map(self.clean_data, self.json_data)
+        return asyncio.run(asyncio.gather(*tasks)) 
