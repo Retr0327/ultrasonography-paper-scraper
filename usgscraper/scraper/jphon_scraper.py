@@ -134,25 +134,37 @@ class JPhon:
 
         Returns:
             a dict: {
-                'title': 'Spectral differences in /ai/ offsets conditioned by voicing of the following consonant',
-                'published_date': 'January 2000',
-                'authors': [{'auth-0': 'Erik R. Thomas'}],
-                'doi': '10.1006/jpho.2000.0103',
-                'href': 'https://www.sciencedirect.com/science/article/pii/S0095447000901037'},
+                'title': 'Effects of word position and flanking vowel on the implementation of glottal stop: Evidence from Hawaiian',
+                'published_date': 'September 2021',
+                'authors': [{'auth-0': 'Lisa Davidson'}],
+                'doi': '10.1016/j.wocn.2021.101075',
+                'href': 'https://www.sciencedirect.com/science/article/pii/S0095447021000474'},
+                'keywords': []
+                    'Glottal stops',
+                    ...
+                    'Hawaiian'
+                ],
+                'abstract': 'Much of the ...'
             }
         """
+        
         title = json_data["title"]
         doi = json_data["doi"]
         href = f'https://www.sciencedirect.com{json_data["href"]}'
+        paper_soup = await self.get_soup(href)
+        keywords = asyncio.create_task(self.get_keywords(paper_soup)) 
+        abstract = asyncio.create_task(self.get_abstract(paper_soup))
         published_date = json_data["coverDateText"]
         authors = json_data["authors"]
+         
         article_info = JPhonInfo(
             title=title,
             published_date=published_date,
             authors=authors,
             doi=doi,
             href=href,
-            keywords=asyncio.run(self.get_keywords(href)),
+            keywords=keywords, 
+            abstract=abstract
         )
         return article_info.dict()
 
