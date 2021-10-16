@@ -97,7 +97,9 @@ class JPhon:
         """
         keyword_html = soup.find(class_="keywords-section") 
         if keyword_html:
-            return [keyword.text for keyword in keyword_html][1:] 
+            keyword_list = [keyword.text for keyword in keyword_html][1:] 
+            return ' '.join(keyword_list)
+            # return [keyword.text for keyword in keyword_html][1:] 
  
     async def get_abstract(self, soup: BeautifulSoup) -> str:
         """The get_abstract method gets the abstract as a str from a soup object
