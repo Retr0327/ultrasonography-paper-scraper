@@ -1,11 +1,13 @@
+import re 
+import json
 import asyncio
-import aiohttp
+import aiohttp 
 import pydantic
 from functools import reduce
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from typing import Optional, Union, Callable, Awaitable, Any
-from usgscraper.json_downloader import JPhonJSONDownloader
+from usgscraper.json_downloader import JPhonJSONDownloader 
 
 
 class JPhonInfo(pydantic.BaseModel):
@@ -176,3 +178,9 @@ class JPhon:
         """
         tasks = map(self.clean_data, self.json_data)
         return asyncio.run(asyncio.gather(*tasks)) 
+    
+    def to_json(self):
+        """The to_json method converts the data to json file"""
+        data = self.extract_data()
+        with open(f"{self.volume}.json", "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False)
