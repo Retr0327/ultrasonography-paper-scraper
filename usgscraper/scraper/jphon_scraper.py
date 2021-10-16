@@ -84,14 +84,48 @@ class JPhon:
             ).download()
         )
 
-    async def get_keywords(self, url):
+    async def get_keywords(self, soup: BeautifulSoup) -> list[str]:
+        """The get_keywords method gets the keywords as a list from a soup object
+
+        Args:
+            soup (BeautifulSoup): the soup object
+
+        Returns:
+            a list
+        """
+        keyword_html = soup.find(class_="keywords-section") 
+        if keyword_html:
+            return [keyword.text for keyword in keyword_html][1:] 
+ 
+    async def get_abstract(self, soup: BeautifulSoup) -> str:
+        """The get_abstract method gets the abstract as a str from a soup object
+
+        Args:
+            soup (BeautifulSoup): the soup object
+
+        Returns:
+            a str
+        """
+        abstract_html = soup.find(id='abstracts') 
+        if abstract_html:
+            abstract = re.search('(?<=Abstract).*', abstract_html.text).group()
+            return abstract 
+
+    async def get_soup(self, href: str) -> BeautifulSoup:
+        """THe get_soup method gets the soup object from href
+
+        Args:
+            href (str): the link to a paper
+
+        Returns:
+            a BeautifulSoup object
+        """
         async with aiohttp.ClientSession(headers=self.headers) as session:
-            async with session.get(url) as response:
+            async with session.get(href) as response:
                 html = await response.text()
                 soup = BeautifulSoup(html, "lxml")
-                keyword_html = soup.find(class_="keywords-section")
-                return [keyword.text for keyword in keyword_html][1:]
-
+                return soup
+            
     async def clean_data(self, json_data: dict) -> dict[str, Union[str, list]]:
         """The clean_data method cleans the JSON data from the class property `self.json_data`.
 
