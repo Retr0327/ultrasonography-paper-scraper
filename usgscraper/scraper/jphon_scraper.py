@@ -19,6 +19,7 @@ class JPhonInfo(pydantic.BaseModel):
     doi: str
     href: str
     keywords: Any
+    abstract: Any
 
     @pydantic.validator("authors")
     @classmethod
@@ -32,13 +33,14 @@ class JPhonInfo(pydantic.BaseModel):
 
         return list(map(extract_author, author))
     
-    @pydantic.validator("keywords")
+    @pydantic.validator("keywords", 'abstract')
     @classmethod
-    def is_keyword(cls, keyword):
-        """The is_keyword method makes sure there is keyword value definied"""
-        if keyword == None:
-            return 'no keyword'
-        return keyword
+    def check_content(cls, value):
+        """The check_content method makes sure there is keyword or abstract value definied"""
+        output = asyncio.run(value)
+        if output == None:
+            return None
+        return output
     
 
 @dataclass
