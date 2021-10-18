@@ -6,7 +6,7 @@ from typing import Optional
 
 
 @dataclass
-class JPhonJSONDownloader:
+class JPhonDownloader:
     """
     The JPhonJSONDownloader object downloads the JSON from Journal of Phonetics
     """
