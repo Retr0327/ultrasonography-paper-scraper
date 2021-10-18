@@ -6,8 +6,8 @@ import pydantic
 from functools import reduce
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
+from usgscraper.downloader import JPhonJSONDownloader 
 from typing import Optional, Union, Callable, Awaitable, Any
-from usgscraper.json_downloader import JPhonJSONDownloader 
 
 
 class JPhonInfo(pydantic.BaseModel):
