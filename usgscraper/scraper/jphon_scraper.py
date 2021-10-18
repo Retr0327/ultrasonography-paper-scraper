@@ -6,7 +6,7 @@ import pydantic
 from functools import reduce
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
-from usgscraper.downloader import JPhonJSONDownloader 
+from usgscraper.downloader import JPhonDownloader 
 from typing import Optional, Union, Callable, Awaitable, Any
 
 
@@ -63,7 +63,7 @@ class JPhon:
         """
         return await asyncio.gather(
             *[
-                JPhonJSONDownloader(
+                JPhonDownloader(
                     self.volume, issue=issue, headers=self.headers
                 ).download()
                 for issue in range(1, 7)
@@ -81,7 +81,7 @@ class JPhon:
             data_collection = asyncio.run(self.download_multiple())
             return reduce(lambda x, y: x + y, data_collection)
         return asyncio.run(
-            JPhonJSONDownloader(
+            JPhonDownloader(
                 self.volume, issue=self.issue, headers=self.headers
             ).download()
         )
