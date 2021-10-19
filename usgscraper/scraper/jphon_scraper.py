@@ -115,7 +115,7 @@ class JPhon:
             abstract = re.search('(?<=Abstract).*', abstract_html.text).group()
             return abstract 
 
-    async def get_soup(self, href: str) -> BeautifulSoup:
+    async def get_paper_soup(self, href: str) -> BeautifulSoup:
         """THe get_soup method gets the soup object from href
 
         Args:
@@ -155,7 +155,7 @@ class JPhon:
         title = json_data["title"]
 #         doi = json_data["doi"]
         href = f'https://www.sciencedirect.com{json_data["href"]}'
-        paper_soup = await asyncio.create_task(self.get_soup(href))
+        paper_soup = await asyncio.create_task(self.get_paper_soup(href))
         keywords = asyncio.create_task(self.get_keywords(paper_soup)) 
         abstract = asyncio.create_task(self.get_abstract(paper_soup))
         published_date = json_data["coverDateText"]
