@@ -18,7 +18,7 @@ class JPhonInfo(pydantic.BaseModel):
     title: str
     published_date: str
     authors: list
-    doi: str
+#     doi: str
     href: str
     keywords: Any
     abstract: Any
@@ -153,9 +153,9 @@ class JPhon:
         """
         
         title = json_data["title"]
-        doi = json_data["doi"]
+#         doi = json_data["doi"]
         href = f'https://www.sciencedirect.com{json_data["href"]}'
-        paper_soup = await self.get_soup(href)
+        paper_soup = await asyncio.create_task(self.get_soup(href))
         keywords = asyncio.create_task(self.get_keywords(paper_soup)) 
         abstract = asyncio.create_task(self.get_abstract(paper_soup))
         published_date = json_data["coverDateText"]
@@ -165,7 +165,7 @@ class JPhon:
             title=title,
             published_date=published_date,
             authors=authors,
-            doi=doi,
+#             doi=doi,
             href=href,
             keywords=keywords, 
             abstract=abstract
