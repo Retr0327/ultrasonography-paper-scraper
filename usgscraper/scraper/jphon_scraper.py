@@ -184,5 +184,5 @@ class JPhon:
     def to_json(self):
         """The to_json method converts the data to json file"""
         data = self.extract_data()
-        with open(f"{self.volume}.json", "w", encoding="utf-8") as file:
+        with open(f"JPhon - {self.volume}.json", "w", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False)
