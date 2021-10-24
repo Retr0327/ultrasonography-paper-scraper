@@ -51,6 +51,6 @@ class JASADownloader:
         req = requests.get(self.url, headers=self.headers)
         soup = BeautifulSoup(req.text, 'lxml')
         article_html = soup.find("div", class_="sub-section") 
-        if article_html == None:
+        if article_html is None:
             return "no such issue"
         return article_html
