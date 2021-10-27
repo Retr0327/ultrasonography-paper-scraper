@@ -1,13 +1,16 @@
-import re 
+import re
 import json
 import asyncio
-import aiohttp 
+import aiohttp
 import pydantic
 from functools import reduce
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
-from usgscraper.downloader import JPhonDownloader 
+from fake_useragent import UserAgent
+from usgscraper.downloader import JPhonDownloader
 from typing import Optional, Union, Callable, Awaitable, Any
+
+HEADERS = {"user-agent": UserAgent().google}
 
 
 class JPhonInfo(pydantic.BaseModel):
@@ -18,7 +21,7 @@ class JPhonInfo(pydantic.BaseModel):
     title: str
     published_date: str
     authors: list
-#     doi: str
+    #     doi: str
     href: str
     keywords: Any
     abstract: Any
@@ -34,8 +37,8 @@ class JPhonInfo(pydantic.BaseModel):
             return {auth_id: full_name}
 
         return list(map(extract_author, author))
-    
-    @pydantic.validator("keywords", 'abstract')
+
+    @pydantic.validator("keywords", "abstract")
     @classmethod
     def check_content(cls, value):
         """The check_content method makes sure there is keyword or abstract value definied"""
@@ -43,7 +46,7 @@ class JPhonInfo(pydantic.BaseModel):
         if output == None:
             return None
         return output
-    
+
 
 @dataclass
 class JPhon:
@@ -52,7 +55,6 @@ class JPhon:
     """
 
     volume: int
-    headers: dict
     issue: Optional[int] = None
 
     async def download_multiple(self) -> Callable[[], Awaitable[list]]:
@@ -63,9 +65,7 @@ class JPhon:
         """
         return await asyncio.gather(
             *[
-                JPhonDownloader(
-                    self.volume, issue=issue, headers=self.headers
-                ).download()
+                JPhonDownloader(self.volume, issue=issue, headers=HEADERS).download()
                 for issue in range(1, 7)
             ]
         )
@@ -81,9 +81,7 @@ class JPhon:
             data_collection = asyncio.run(self.download_multiple())
             return reduce(lambda x, y: x + y, data_collection)
         return asyncio.run(
-            JPhonDownloader(
-                self.volume, issue=self.issue, headers=self.headers
-            ).download()
+            JPhonDownloader(self.volume, issue=self.issue, headers=HEADERS).download()
         )
 
     async def get_keywords(self, soup: BeautifulSoup) -> list[str]:
@@ -95,12 +93,12 @@ class JPhon:
         Returns:
             a list
         """
-        keyword_html = soup.find(class_="keywords-section") 
+        keyword_html = soup.find(class_="keywords-section")
         if keyword_html:
-            keyword_list = [keyword.text for keyword in keyword_html][1:] 
-            return ' '.join(keyword_list)
-            # return [keyword.text for keyword in keyword_html][1:] 
- 
+            keyword_list = [keyword.text for keyword in keyword_html][1:]
+            return " ".join(keyword_list)
+            # return [keyword.text for keyword in keyword_html][1:]
+
     async def get_abstract(self, soup: BeautifulSoup) -> str:
         """The get_abstract method gets the abstract as a str from a soup object
 
@@ -110,10 +108,10 @@ class JPhon:
         Returns:
             a str
         """
-        abstract_html = soup.find(id='abstracts') 
+        abstract_html = soup.find(id="abstracts")
         if abstract_html:
-            abstract = re.search('(?<=Abstract).*', abstract_html.text).group()
-            return abstract 
+            abstract = re.search("(?<=Abstract).*", abstract_html.text).group()
+            return abstract
 
     async def get_paper_soup(self, href: str) -> BeautifulSoup:
         """THe get_soup method gets the soup object from href
@@ -124,12 +122,12 @@ class JPhon:
         Returns:
             a BeautifulSoup object
         """
-        async with aiohttp.ClientSession(headers=self.headers) as session:
+        async with aiohttp.ClientSession(headers=HEADERS) as session:
             async with session.get(href) as response:
                 html = await response.text()
                 soup = BeautifulSoup(html, "lxml")
                 return soup
-            
+
     async def clean_data(self, json_data: dict) -> dict[str, Union[str, list]]:
         """The clean_data method cleans the JSON data from the class property `self.json_data`.
 
@@ -151,24 +149,24 @@ class JPhon:
                 'abstract': 'Much of the ...'
             }
         """
-        
+
         title = json_data["title"]
-#         doi = json_data["doi"]
+        #         doi = json_data["doi"]
         href = f'https://www.sciencedirect.com{json_data["href"]}'
         paper_soup = await asyncio.create_task(self.get_paper_soup(href))
-        keywords = asyncio.create_task(self.get_keywords(paper_soup)) 
+        keywords = asyncio.create_task(self.get_keywords(paper_soup))
         abstract = asyncio.create_task(self.get_abstract(paper_soup))
         published_date = json_data["coverDateText"]
         authors = json_data["authors"]
-         
+
         article_info = JPhonInfo(
             title=title,
             published_date=published_date,
             authors=authors,
-#             doi=doi,
+            #             doi=doi,
             href=href,
-            keywords=keywords, 
-            abstract=abstract
+            keywords=keywords,
+            abstract=abstract,
         )
         return article_info.dict()
 
@@ -179,10 +177,10 @@ class JPhon:
             a map object
         """
         tasks = map(self.clean_data, self.json_data)
-        return asyncio.run(asyncio.gather(*tasks)) 
-    
+        return asyncio.run(asyncio.gather(*tasks))
+
     def to_json(self):
         """The to_json method converts the data to json file"""
         data = self.extract_data()
-        with open(f"JPhon - {self.volume}.json", "w", encoding="utf-8") as file:
+        with open(f"{self.volume}.json", "w", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False)
