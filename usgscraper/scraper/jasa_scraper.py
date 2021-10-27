@@ -4,8 +4,45 @@ import pydantic
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from typing import Union, Optional
+from abc import ABC, abstractmethod
 from usgscraper.downloader import JASADownloader
 from concurrent.futures import ThreadPoolExecutor
+
+
+# --------------------------------------------------------------------
+# strategy pattern
+
+class DownloadingSoupStrategy(ABC):
+    def __init__(self, volume: int, issue: Optional[int] = None):
+        self.volume = volume
+        self.issue = issue
+
+    @abstractmethod
+    def create_soup(self):
+        """Returns a soup object"""
+        pass
+
+
+class SingleSoupStrategy(DownloadingSoupStrategy):
+    def create_soup(self):
+        return JASADownloader(volume=self.volume, issue=self.issue).download()
+
+
+class AllSoupStrategy(DownloadingSoupStrategy):
+    def download_multiple(self, issue):
+        return JASADownloader(volume=self.volume, issue=issue).download()
+
+    def create_soup(self):
+        with ThreadPoolExecutor() as executor:
+            pseudo_soup = BeautifulSoup("<body></body>", "lxml")
+            result = executor.map(self.download_multiple, [*range(1, 7)])
+            for soup in result:
+                pseudo_soup.append(soup)
+            return pseudo_soup
+
+
+# --------------------------------------------------------------------
+# public interface
 
 
 class JASAInfo(pydantic.BaseModel):
@@ -35,9 +72,6 @@ class JASA:
     volume: int
     issue: Optional[int] = None
 
-    def download_multiple(self, issue):
-        return JASA(volume=self.volume, issue=issue).soup
-
     @property
     def soup(self) -> BeautifulSoup:
         """The soup property set the soup object based on the volume and issue number.
@@ -46,15 +80,10 @@ class JASA:
             a BeautifulSoup object
         """
         if self.issue:
-            return JASADownloader(volume=self.volume, issue=self.issue).download()
-
-        with ThreadPoolExecutor() as executor:
-            sudo_soup = BeautifulSoup("<html><body></body></html>", "lxml")
-            sudo_body = sudo_soup.find("body")
-            result = executor.map(self.download_multiple, [*range(1, 7)])
-            for soup in result:
-                sudo_body.append(soup)
-            return sudo_body
+            return SingleSoupStrategy(
+                volume=self.volume, issue=self.issue
+            ).create_soup()
+        return AllSoupStrategy(volume=self.volume, issue=None).create_soup()
 
     def create_href(self, doi) -> str:
         """The create_href method creates a href based on the doi.
@@ -108,10 +137,7 @@ class JASA:
         authors = self.create_author_list(author_html)
 
         jasa_info = JASAInfo(
-            title=title, 
-            published_date=article_date, 
-            authors=authors, 
-            href=href
+            title=title, published_date=article_date, authors=authors, href=href
         )
         return jasa_info.dict()
 
