@@ -6,11 +6,51 @@ import pydantic
 from functools import reduce
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
 from fake_useragent import UserAgent
 from usgscraper.downloader import JPhonDownloader
 from typing import Optional, Union, Callable, Awaitable, Any
 
 HEADERS = {"user-agent": UserAgent().google}
+
+# --------------------------------------------------------------------
+# strategy pattern
+
+
+class DownloadingJSONStrategy(ABC):
+    def __init__(self, volume: int, issue: Optional[int] = None):
+        self.volume = volume
+        self.issue = issue
+
+    @abstractmethod
+    def create_json(self):
+        """Returns a soup object"""
+        pass
+
+
+class SingleJsonStrategy(DownloadingJSONStrategy):
+    def create_json(self):
+        return asyncio.run(
+            JPhonDownloader(self.volume, issue=self.issue, headers=HEADERS).download()
+        )
+
+
+class AllJsonStrategy(DownloadingJSONStrategy):
+    async def download_multiple(self) -> Callable[[], Awaitable[list]]:
+        return await asyncio.gather(
+            *[
+                JPhonDownloader(self.volume, issue=issue, headers=HEADERS).download()
+                for issue in range(1, 7)
+            ]
+        )
+
+    def create_json(self):
+        data_collection = asyncio.run(self.download_multiple())
+        return reduce(lambda x, y: x + y, data_collection)
+
+
+# --------------------------------------------------------------------
+# public interface
 
 
 class JPhonInfo(pydantic.BaseModel):
@@ -57,19 +97,6 @@ class JPhon:
     volume: int
     issue: Optional[int] = None
 
-    async def download_multiple(self) -> Callable[[], Awaitable[list]]:
-        """The download_multiple method downloads multiple JSON data.
-
-        Returns:
-            an awaitable list
-        """
-        return await asyncio.gather(
-            *[
-                JPhonDownloader(self.volume, issue=issue, headers=HEADERS).download()
-                for issue in range(1, 7)
-            ]
-        )
-
     @property
     def json_data(self) -> list[dict[str, Union[str, list]]]:
         """The json_data property set the JSON data based on the volume and issue number.
@@ -78,11 +105,8 @@ class JPhon:
             a list
         """
         if self.volume < 42 and self.issue is None:
-            data_collection = asyncio.run(self.download_multiple())
-            return reduce(lambda x, y: x + y, data_collection)
-        return asyncio.run(
-            JPhonDownloader(self.volume, issue=self.issue, headers=HEADERS).download()
-        )
+            return AllJsonStrategy(volume=self.volume, issue=None).create_json()
+        return SingleJsonStrategy(volume=self.volume, issue=self.issue).create_json()
 
     async def get_keywords(self, soup: BeautifulSoup) -> list[str]:
         """The get_keywords method gets the keywords as a list from a soup object
