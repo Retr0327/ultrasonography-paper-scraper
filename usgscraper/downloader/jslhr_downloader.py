@@ -25,7 +25,7 @@ class SingleSoupStrategy(DownloadingSoupStrategy):
         article_html = soup.find(class_='titled_issues')
         if article_html is None:
             return "no such issue"
-        return soup
+        return article_html
 
 class AllSoupStrategy(DownloadingSoupStrategy):
     def create_url_list(self, issue: int) -> str:
@@ -56,7 +56,7 @@ class AllSoupStrategy(DownloadingSoupStrategy):
             article_html = soup.find(class_='titled_issues')
             if article_html is None:
                 return "no such issue"
-            return soup
+            return article_html
 
     async def create_soup(self) -> Callable[[], Awaitable[list]]:
         url_list = list(map(self.create_url_list, range(1, 13)))
