@@ -2,6 +2,7 @@ import re
 import json
 import asyncio
 import pydantic
+from functools import wraps
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from typing import Optional, Any, Union
@@ -10,6 +11,45 @@ from usgscraper.downloader import (
     SingleSoupStrategy,
     AllSoupStrategy,
 )
+
+# --------------------------------------------------------------------
+# helper functions
+
+
+def jsonify(volume: int, issue: int, data: dict) -> None:
+    """The jsonify function converts the argument `data` to a JSON file.
+
+    Args:
+        volume (int): the volume of a journal
+        issue (int): the issue of a volume
+        data (dict): the target data
+
+    Returns:
+        a json file
+    """
+    if issue:
+        with open(f"JSLHR - {volume} - {issue}.json", "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False)
+    else:
+        with open(f"JSLHR - {volume}.json", "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False)
+
+
+def convert(datatype):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            data = list(self.extract_data())
+            if datatype == "json":
+                jsonify(self.volume, self.issue, data)
+
+        return wrapper
+
+    return decorator
+
+
+# --------------------------------------------------------------------
+# public interface
 
 
 class JSLHRInfo(pydantic.BaseModel):
@@ -97,7 +137,9 @@ class JSLHR:
         title = article_html.find("div", class_="issue-item__title")
         date = article_html.find("div", class_="issue-item__header").text
         abstract = article_html.find("div", class_="accordion__content card--shadow")
-        authors = article_html.find("div", class_="issue-item__authors").ul.find_all("a")
+        authors = article_html.find("div", class_="issue-item__authors").ul.find_all(
+            "a"
+        )
 
         jslhr_info = JSLHRInfo(
             title=title, published_date=date, abstract=abstract, authors=authors
@@ -112,3 +154,7 @@ class JSLHR:
         """
         articles_soup = self.extract_soup().findAll("div", class_="issue-item")
         return map(self.clean_data, articles_soup)
+
+    @convert("json")
+    def to_json(self):
+        return
