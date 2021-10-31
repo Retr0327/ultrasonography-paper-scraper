@@ -1,14 +1,14 @@
-import re 
+import re
 import asyncio
-import pydantic 
+import pydantic
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from usgscraper.util import convert
 from typing import Optional, Any, Union
 from usgscraper.downloader import (
-    DownloadingSoupStrategy,
-    SingleSoupStrategy,
-    AllSoupStrategy,
+    DownloadingJSLHRSoupStrategy,
+    SingleJSLHRSoupStrategy,
+    AllJSLHRSoupStrategy,
 )
 
 
@@ -82,14 +82,14 @@ class JSLHR:
             pseudo_soup.append(soup)
         return pseudo_soup
 
-    def extract_soup(self) -> DownloadingSoupStrategy:
+    def extract_soup(self) -> DownloadingJSLHRSoupStrategy:
         """The extract_soup method extracts the soup object based on `self.volume` and `self.issue`."""
         if self.issue:
-            return SingleSoupStrategy(
+            return SingleJSLHRSoupStrategy(
                 volume=self.volume, issue=self.issue
             ).create_soup()
         soup_list = asyncio.run(
-            AllSoupStrategy(volume=self.volume, issue=None).create_soup()
+            AllJSLHRSoupStrategy(volume=self.volume, issue=None).create_soup()
         )
         return self.merge_soup(soup_list)
 
