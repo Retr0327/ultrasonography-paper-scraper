@@ -1,8 +1,14 @@
 import requests
-from typing import Union
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
+from typing import Union, Optional
+from abc import ABC, abstractmethod
 from fake_useragent import UserAgent
+from concurrent.futures import ThreadPoolExecutor
+
+
+# --------------------------------------------------------------------
+# helper class
 
 
 @dataclass
@@ -34,7 +40,7 @@ class JASADownloader:
             "sec-fetch-site": "none",
             "sec-fetch-user": "?1",
             "upgrade-insecure-requests": "1",
-            "user-agent": UserAgent().google, 
+            "user-agent": UserAgent().google,
         }
 
     @property
@@ -49,8 +55,41 @@ class JASADownloader:
             a BeautifulSoup object if a issue exists, a str otherwise.
         """
         req = requests.get(self.url, headers=self.headers)
-        soup = BeautifulSoup(req.text, 'lxml')
-        article_html = soup.find("div", class_="sub-section") 
+        soup = BeautifulSoup(req.text, "lxml")
+        article_html = soup.find("div", class_="sub-section")
         if article_html is None:
             return "no such issue"
         return article_html
+
+
+# --------------------------------------------------------------------
+# strategy pattern
+
+
+class DownloadingJASASoupStrategy(ABC):
+    def __init__(self, volume: int, issue: Optional[int] = None):
+        self.volume = volume
+        self.issue = issue
+
+    @abstractmethod
+    def create_soup(self):
+        """Returns a soup object"""
+        pass
+
+
+class SingleJASASoupStrategy(DownloadingJASASoupStrategy):
+    def create_soup(self):
+        return JASADownloader(volume=self.volume, issue=self.issue).download()
+
+
+class AllJASASoupStrategy(DownloadingJASASoupStrategy):
+    def download_multiple(self, issue: int):
+        return JASADownloader(volume=self.volume, issue=issue).download()
+
+    def create_soup(self):
+        with ThreadPoolExecutor() as executor:
+            pseudo_soup = BeautifulSoup("<body></body>", "lxml")
+            result = executor.map(self.download_multiple, [*range(1, 7)])
+            for soup in result:
+                pseudo_soup.append(soup)
+            return pseudo_soup
