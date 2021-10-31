@@ -1,48 +1,10 @@
 import re
-import json
 import pydantic
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from typing import Union, Optional
-from abc import ABC, abstractmethod
-from usgscraper.downloader import JASADownloader
-from concurrent.futures import ThreadPoolExecutor
-
-
-# --------------------------------------------------------------------
-# strategy pattern
-
-class DownloadingSoupStrategy(ABC):
-    def __init__(self, volume: int, issue: Optional[int] = None):
-        self.volume = volume
-        self.issue = issue
-
-    @abstractmethod
-    def create_soup(self):
-        """Returns a soup object"""
-        pass
-
-
-class SingleSoupStrategy(DownloadingSoupStrategy):
-    def create_soup(self):
-        return JASADownloader(volume=self.volume, issue=self.issue).download()
-
-
-class AllSoupStrategy(DownloadingSoupStrategy):
-    def download_multiple(self, issue):
-        return JASADownloader(volume=self.volume, issue=issue).download()
-
-    def create_soup(self):
-        with ThreadPoolExecutor() as executor:
-            pseudo_soup = BeautifulSoup("<body></body>", "lxml")
-            result = executor.map(self.download_multiple, [*range(1, 7)])
-            for soup in result:
-                pseudo_soup.append(soup)
-            return pseudo_soup
-
-
-# --------------------------------------------------------------------
-# public interface
+from usgscraper.util import convert
+from usgscraper.downloader import SingleJASASoupStrategy, AllJASASoupStrategy
 
 
 class JASAInfo(pydantic.BaseModel):
@@ -80,12 +42,12 @@ class JASA:
             a BeautifulSoup object
         """
         if self.issue:
-            return SingleSoupStrategy(
+            return SingleJASASoupStrategy(
                 volume=self.volume, issue=self.issue
             ).create_soup()
-        return AllSoupStrategy(volume=self.volume, issue=None).create_soup()
+        return AllJASASoupStrategy(volume=self.volume, issue=None).create_soup()
 
-    def create_href(self, doi) -> str:
+    def create_href(self, doi: str) -> str:
         """The create_href method creates a href based on the doi.
 
         Returns:
@@ -94,7 +56,7 @@ class JASA:
         href = re.search("(?<=\/)\d.*", doi).group()
         return f"https://asa.scitation.org/doi/full/{href}"
 
-    def create_author_list(self, author_html) -> Union[list, str]:
+    def create_author_list(self, author_html: BeautifulSoup) -> Union[list, str]:
         """The create_author_list method creates a list of authors
 
         Returns:
@@ -106,7 +68,7 @@ class JASA:
         except AttributeError:
             return "no author"
 
-    def clean_data(self, article_html) -> dict[str, Union[str, list]]:
+    def clean_data(self, article_html: BeautifulSoup) -> dict[str, Union[str, list]]:
         """The clean_data method cleans the BeautifulSoup object from the argument `article_html`.
 
         Args:
@@ -150,8 +112,6 @@ class JASA:
         article_html_list = self.soup.findAll("section", class_="card")
         return map(self.clean_data, article_html_list)
 
+    @convert("json")
     def to_json(self) -> None:
-        """The to_json method converts the data to json file"""
-        data = list(self.extract_data())
-        with open(f"JASA - {self.volume}.json", "w", encoding="utf-8") as file:
-            json.dump(data, file, ensure_ascii=False)
+        return
