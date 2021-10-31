@@ -1,56 +1,17 @@
 import re
-import json
 import asyncio
 import aiohttp
 import pydantic
 from functools import reduce
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
-from abc import ABC, abstractmethod
+from usgscraper.util import convert
 from fake_useragent import UserAgent
-from usgscraper.downloader import JPhonDownloader
-from typing import Optional, Union, Callable, Awaitable, Any
+from typing import Optional, Union, Any
+from usgscraper.downloader import SingleJSONStrategy, AllJSONStrategy
+
 
 HEADERS = {"user-agent": UserAgent().google}
-
-# --------------------------------------------------------------------
-# strategy pattern
-
-
-class DownloadingJSONStrategy(ABC):
-    def __init__(self, volume: int, issue: Optional[int] = None):
-        self.volume = volume
-        self.issue = issue
-
-    @abstractmethod
-    def create_json(self):
-        """Returns a soup object"""
-        pass
-
-
-class SingleJsonStrategy(DownloadingJSONStrategy):
-    def create_json(self):
-        return asyncio.run(
-            JPhonDownloader(self.volume, issue=self.issue, headers=HEADERS).download()
-        )
-
-
-class AllJsonStrategy(DownloadingJSONStrategy):
-    async def download_multiple(self) -> Callable[[], Awaitable[list]]:
-        return await asyncio.gather(
-            *[
-                JPhonDownloader(self.volume, issue=issue, headers=HEADERS).download()
-                for issue in range(1, 7)
-            ]
-        )
-
-    def create_json(self):
-        data_collection = asyncio.run(self.download_multiple())
-        return reduce(lambda x, y: x + y, data_collection)
-
-
-# --------------------------------------------------------------------
-# public interface
 
 
 class JPhonInfo(pydantic.BaseModel):
@@ -62,26 +23,28 @@ class JPhonInfo(pydantic.BaseModel):
     published_date: str
     authors: list
     #     doi: str
-    href: str
+    # href: str
     keywords: Any
     abstract: Any
 
     @pydantic.validator("authors")
     @classmethod
-    def is_author(cls, author) -> str:
-        """The is_author method makes sure there is author value definied."""
+    def has_author(cls, author) -> str:
+        """The has_author method makes sure there is author value definied."""
 
         def extract_author(value):
             auth_id = value["id"]
             full_name = f'{value["givenName"]} {value["surname"]}'
             return {auth_id: full_name}
 
+        if not author:
+            return "no author"
         return list(map(extract_author, author))
 
     @pydantic.validator("keywords", "abstract")
     @classmethod
-    def check_content(cls, value):
-        """The check_content method makes sure there is keyword or abstract value definied"""
+    def has_content(cls, value):
+        """The has_content method makes sure there is keyword or abstract value definied"""
         output = asyncio.run(value)
         if output == None:
             return None
@@ -90,30 +53,28 @@ class JPhonInfo(pydantic.BaseModel):
 
 @dataclass
 class JPhon:
-    """
-    The JPhon object extracts and cleans the JSON data from Jouranl of Phonetics.
-    """
-
     volume: int
     issue: Optional[int] = None
 
-    @property
-    def json_data(self) -> list[dict[str, Union[str, list]]]:
-        """The json_data property set the JSON data based on the volume and issue number.
+    def download_json_data(self) -> list[dict[str, Union[str, list]]]:
+        """The download_json_data method downloads the json data.
 
         Returns:
             a list
         """
-        if self.volume < 42 and self.issue is None:
-            return AllJsonStrategy(volume=self.volume, issue=None).create_json()
-        return SingleJsonStrategy(volume=self.volume, issue=self.issue).create_json()
+        if self.volume > 42:
+            return SingleJSONStrategy(
+                volume=self.volume, issue=self.issue
+            ).download_json()
+        data_collection = asyncio.run(
+            AllJSONStrategy(volume=self.volume).download_json()
+        )
+        return reduce(lambda x, y: x + y, data_collection)
 
     async def get_keywords(self, soup: BeautifulSoup) -> list[str]:
         """The get_keywords method gets the keywords as a list from a soup object
-
         Args:
             soup (BeautifulSoup): the soup object
-
         Returns:
             a list
         """
@@ -121,14 +82,11 @@ class JPhon:
         if keyword_html:
             keyword_list = [keyword.text for keyword in keyword_html][1:]
             return " ".join(keyword_list)
-            # return [keyword.text for keyword in keyword_html][1:]
 
     async def get_abstract(self, soup: BeautifulSoup) -> str:
         """The get_abstract method gets the abstract as a str from a soup object
-
         Args:
             soup (BeautifulSoup): the soup object
-
         Returns:
             a str
         """
@@ -139,10 +97,8 @@ class JPhon:
 
     async def get_paper_soup(self, href: str) -> BeautifulSoup:
         """THe get_soup method gets the soup object from href
-
         Args:
             href (str): the link to a paper
-
         Returns:
             a BeautifulSoup object
         """
@@ -154,10 +110,8 @@ class JPhon:
 
     async def clean_data(self, json_data: dict) -> dict[str, Union[str, list]]:
         """The clean_data method cleans the JSON data from the class property `self.json_data`.
-
         Args:
             json_data (dict): paper info
-
         Returns:
             a dict: {
                 'title': 'Effects of word position and flanking vowel on the implementation of glottal stop: Evidence from Hawaiian',
@@ -175,7 +129,7 @@ class JPhon:
         """
 
         title = json_data["title"]
-        #         doi = json_data["doi"]
+        # doi = json_data["doi"]
         href = f'https://www.sciencedirect.com{json_data["href"]}'
         paper_soup = await asyncio.create_task(self.get_paper_soup(href))
         keywords = asyncio.create_task(self.get_keywords(paper_soup))
@@ -187,24 +141,18 @@ class JPhon:
             title=title,
             published_date=published_date,
             authors=authors,
-            #             doi=doi,
-            href=href,
+            # doi=doi,
+            # href=href,
             keywords=keywords,
             abstract=abstract,
         )
         return article_info.dict()
 
-    def extract_data(self) -> map:
-        """The extract_data method extracts the JSON data from the class property `self.json_data`.
-
-        Returns:
-            a map object
-        """
-        tasks = map(self.clean_data, self.json_data)
+    def extract_data(self) -> list[dict[str, str]]:
+        json_data = self.download_json_data()
+        tasks = map(self.clean_data, json_data)
         return asyncio.run(asyncio.gather(*tasks))
 
+    @convert('json')
     def to_json(self):
-        """The to_json method converts the data to json file"""
-        data = self.extract_data()
-        with open(f"{self.volume}.json", "w", encoding="utf-8") as file:
-            json.dump(data, file, ensure_ascii=False)
+        return 
