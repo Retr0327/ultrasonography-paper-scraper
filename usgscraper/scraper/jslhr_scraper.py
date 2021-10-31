@@ -1,55 +1,15 @@
-import re
-import json
+import re 
 import asyncio
-import pydantic
-from functools import wraps
+import pydantic 
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
+from usgscraper.util import convert
 from typing import Optional, Any, Union
 from usgscraper.downloader import (
     DownloadingSoupStrategy,
     SingleSoupStrategy,
     AllSoupStrategy,
 )
-
-# --------------------------------------------------------------------
-# helper functions
-
-
-def jsonify(volume: int, issue: int, data: dict) -> None:
-    """The jsonify function converts the argument `data` to a JSON file.
-
-    Args:
-        volume (int): the volume of a journal
-        issue (int): the issue of a volume
-        data (dict): the target data
-
-    Returns:
-        a json file
-    """
-    if issue:
-        with open(f"JSLHR - {volume} - {issue}.json", "w", encoding="utf-8") as file:
-            json.dump(data, file, ensure_ascii=False)
-    else:
-        with open(f"JSLHR - {volume}.json", "w", encoding="utf-8") as file:
-            json.dump(data, file, ensure_ascii=False)
-
-
-def convert(datatype):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            data = list(self.extract_data())
-            if datatype == "json":
-                jsonify(self.volume, self.issue, data)
-
-        return wrapper
-
-    return decorator
-
-
-# --------------------------------------------------------------------
-# public interface
 
 
 class JSLHRInfo(pydantic.BaseModel):
