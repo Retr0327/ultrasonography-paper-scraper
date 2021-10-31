@@ -8,7 +8,7 @@ from fake_useragent import UserAgent
 from typing import Union, Callable, Awaitable, Optional
 
 
-class DownloadingSoupStrategy(ABC):
+class DownloadingJSLHRSoupStrategy(ABC):
     def __init__(self, volume: int, issue: Optional[int] = None) -> None:
         self.volume = volume
         self.issue = issue
@@ -19,7 +19,7 @@ class DownloadingSoupStrategy(ABC):
         pass
 
 
-class SingleSoupStrategy(DownloadingSoupStrategy):
+class SingleJSLHRSoupStrategy(DownloadingJSLHRSoupStrategy):
     def create_soup(self) -> Union[BeautifulSoup, str]:
         req = requests.get(
             f"https://pubs.asha.org/toc/jslhr/{self.volume}/{self.issue}",
@@ -32,7 +32,7 @@ class SingleSoupStrategy(DownloadingSoupStrategy):
         return article_html
 
 
-class AllSoupStrategy(DownloadingSoupStrategy):
+class AllJSLHRSoupStrategy(DownloadingJSLHRSoupStrategy):
     def create_url_list(self, issue: int) -> str:
         """The create_url_list method create a url based on the base url
 
